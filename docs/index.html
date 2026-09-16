@@ -297,9 +297,14 @@
 
   .hidden{ display:none !important; }
 
-  /* ---- Auxiliary video feed (fixed YouTube embed, timer-driven) ---- */
-  .ytwrap{ margin:6px auto 10px; width:90%; }
-  .ytwrap .ptitle{ font-size:8px; letter-spacing:.3em; color:var(--amber-dim);
+  /* ---- Auxiliary video feed (fixed YouTube embed, timer-driven) ----
+     .ytwrap sits inside <main>, which already has 16px side padding; the
+     negative side-margins cancel that padding so .ytinner's 90% width is
+     measured against the full device width, keeping the original 5%-of-app
+     horizontal margin regardless of where in the layout this block sits. */
+  .ytwrap{ margin:10px -16px 12px; }
+  .ytinner{ width:90%; margin:0 auto; }
+  .ytinner .ptitle{ font-size:8px; letter-spacing:.3em; color:var(--amber-dim);
                    margin-bottom:6px; text-transform:uppercase; text-align:center; }
   .ytbox{
     position:relative; width:100%; aspect-ratio:16/9; overflow:hidden;
@@ -364,6 +369,16 @@
 
       <div class="warnbar" id="warnbar">⚠ ACTIVITY LIMIT APPROACHING ⚠</div>
 
+      <div class="ytwrap hidden" id="ytWrap">
+        <div class="ytinner">
+          <div class="ptitle">// AUX FEED</div>
+          <div class="ytbox">
+            <div id="yt-player-target"></div>
+            <div class="ytshield"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- controls: chrono + countdown -->
       <div class="controls hidden" id="controls">
         <button id="btnStart" class="primary">Start</button>
@@ -388,14 +403,6 @@
       </div>
 
     </main>
-
-    <div class="ytwrap hidden" id="ytWrap">
-      <div class="ptitle">// AUX FEED</div>
-      <div class="ytbox">
-        <div id="yt-player-target"></div>
-        <div class="ytshield"></div>
-      </div>
-    </div>
 
     <footer>
       <span>NERV-01 // MAGI</span>
