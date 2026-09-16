@@ -1,7 +1,7 @@
 {
   "appId": "com.nerv.evatimer",
   "appName": "EVA Timer",
-  "webDir": "www",
+  "webDir": "docs",
   "android": {
     "backgroundColor": "#050504"
   }

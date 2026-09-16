@@ -6,17 +6,17 @@ An Evangelion-inspired **watch + chronograph + countdown timer**, styled after t
 - **Chronograph** — stopwatch with millisecond precision (`HH:MM:SS.mmm`), Start / Stop / Reset
 - **Countdown** — set up to `24:00:00` by typing or presets; millisecond display; turns **orange under 5 min**, **pulsing red under 1 min**, beeps in the final 10 s, and sounds an alarm at zero
 
-The whole app lives in [`www/`](www/) — a self-contained static web app (no build step, no external dependencies).
+The whole app lives in [`docs/`](docs/) — a self-contained static web app (no build step, no external dependencies).
 
 ---
 
 ## 1. Run it in a browser (right now)
 
-Open [`www/index.html`](www/index.html) directly in any browser, **or** serve the folder:
+Open [`docs/index.html`](docs/index.html) directly in any browser, **or** serve the folder:
 
 ```bash
 # Python 3
-python -m http.server 8123 --directory www
+python -m http.server 8123 --directory docs
 # then open http://localhost:8123
 ```
 
@@ -24,10 +24,10 @@ python -m http.server 8123 --directory www
 
 The app is a full Progressive Web App (manifest + offline service worker + icons).
 
-1. Host the `www/` folder over **HTTPS** (a service worker only runs on HTTPS or `localhost`). Easiest free options:
-   - **GitHub Pages** — push `www/` to a repo and enable Pages.
-   - **Netlify** — drag-and-drop the `www/` folder at https://app.netlify.com/drop.
-   - **Cloudflare Pages / Vercel** — point at the repo, set the output/root to `www`.
+1. Host the `docs/` folder over **HTTPS** (a service worker only runs on HTTPS or `localhost`). Easiest free options:
+   - **GitHub Pages** — Settings → Pages → Source: "Deploy from a branch" → Branch `main`, folder **`/docs`**. (The folder is named `docs` specifically because GitHub Pages' branch-deploy only supports the repo root or a folder literally called `/docs` — no custom paths.)
+   - **Netlify** — drag-and-drop the `docs/` folder at https://app.netlify.com/drop.
+   - **Cloudflare Pages / Vercel** — point at the repo, set the output/root to `docs`.
 2. Open the hosted URL in **Chrome on Android**.
 3. Tap the **⋮ menu → "Install app"** (or "Add to Home screen").
 
@@ -51,7 +51,7 @@ cd eva-chrono-timer
 # 1. install Capacitor
 npm install
 
-# 2. create the native Android project (reads capacitor.config.json -> webDir: "www")
+# 2. create the native Android project (reads capacitor.config.json -> webDir: "docs")
 npx cap add android
 
 # 3. copy the web app into the native project
@@ -78,7 +78,7 @@ adb install android/app/build/outputs/apk/debug/app-debug.apk
 Change these in [`capacitor.config.json`](capacitor.config.json) before your first `cap add android`.
 
 ### Whenever you edit the app
-After changing anything in `www/`, re-sync the native project:
+After changing anything in `docs/`, re-sync the native project:
 ```bash
 npx cap sync
 ```
@@ -96,7 +96,7 @@ npx capacitor-assets generate --android
 ## Project layout
 ```
 eva-chrono-timer/
-├─ www/                      # the app (PWA + Capacitor webDir)
+├─ docs/                      # the app (PWA + Capacitor webDir)
 │  ├─ index.html
 │  ├─ manifest.webmanifest
 │  ├─ sw.js                  # offline service worker
