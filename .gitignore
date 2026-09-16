@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+
+# Capacitor native project (regenerated with `npx cap add android`)
+/android/
+
+# build output
+*.apk
+*.aab
+
+# OS / editor
+.DS_Store
+Thumbs.db

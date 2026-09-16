@@ -1,0 +1,19 @@
+{
+  "name": "eva-chrono-timer",
+  "version": "1.0.0",
+  "description": "Evangelion-style watch, chronograph and countdown timer (PWA + Capacitor Android app)",
+  "private": true,
+  "scripts": {
+    "add:android": "cap add android",
+    "sync": "cap sync",
+    "open:android": "cap open android",
+    "build:apk": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

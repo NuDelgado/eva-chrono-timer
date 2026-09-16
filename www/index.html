@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>NERV // EVA CHRONO-TIMER</title>
+<meta name="description" content="Evangelion-style watch, chronograph and countdown timer.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#050504">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EVA Timer">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="icon" type="image/png" href="./icons/icon-192.png">
+<style>
+  /* ============================================================
+     EVANGELION-STYLE CHRONO-TIMER
+     Amber-on-black tactical display w/ CRT + warning states
+     ============================================================ */
+
+  :root{
+    --bg:        #040504;
+    --panel:     #0a0d0a;
+    --amber:     #ff9d1c;      /* primary yellowish-orange */
+    --amber-hi:  #ffc247;
+    --amber-dim: #7a4c0a;
+    --red:       #ff2318;
+    --red-hi:    #ff5b4a;
+    --green:     #35ff8a;      /* NERV HUD accents */
+    --grid:      rgba(255,157,28,.06);
+    --scan:      rgba(0,0,0,.35);
+    --mono: "SFMono-Regular","DSEG7","Consolas","Roboto Mono","Courier New",monospace;
+    --disp: "Orbitron","SFMono-Regular","Consolas",monospace;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+  html,body{ height:100%; }
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #0d140d 0%, var(--bg) 55%),
+      var(--bg);
+    color:var(--amber);
+    font-family:var(--disp);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    overflow:hidden;
+    letter-spacing:.06em;
+  }
+
+  /* ---- Phone-portrait frame ---- */
+  .device{
+    position:relative;
+    width:100%;
+    max-width:390px;
+    height:100vh;
+    max-height:844px;
+    background:linear-gradient(180deg,#070907,#050605);
+    border:1px solid rgba(255,157,28,.18);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,.6) inset,
+      0 0 60px rgba(255,157,28,.08),
+      0 0 120px rgba(0,0,0,.9);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* background hex/grid HUD */
+  .device::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:26px 26px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ---- CRT scanlines + flicker overlay ---- */
+  .crt{
+    position:absolute; inset:0; z-index:60; pointer-events:none;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        var(--scan) 3px,
+        var(--scan) 4px);
+    mix-blend-mode:multiply;
+  }
+  .crt::after{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(120% 80% at 50% 50%, transparent 60%, rgba(0,0,0,.55) 100%);
+  }
+  .crt.flick{ animation:flick 6s infinite steps(60); }
+  @keyframes flick{ 0%,97%{opacity:1;} 98%{opacity:.82;} 99%{opacity:.95;} 100%{opacity:1;} }
+
+  /* ---- Header / NERV bar ---- */
+  header{
+    position:relative; z-index:2;
+    padding:14px 16px 10px;
+    border-bottom:1px solid rgba(255,157,28,.16);
+    display:flex; align-items:center; gap:10px;
+  }
+  .logo{
+    width:26px; height:26px; flex:0 0 auto;
+    background:var(--amber);
+    clip-path:polygon(50% 0,100% 88%,0 88%);
+    filter:drop-shadow(0 0 6px rgba(255,157,28,.7));
+  }
+  .logo-wrap{ display:flex; flex-direction:column; line-height:1; }
+  .brand{ font-size:15px; font-weight:800; letter-spacing:.42em; color:var(--amber-hi);
+           text-shadow:0 0 10px rgba(255,157,28,.6); }
+  .brand small{ font-size:8px; letter-spacing:.3em; color:var(--amber-dim); display:block; margin-top:4px; }
+  .sysbadge{ margin-left:auto; font-size:8px; text-align:right; color:var(--green);
+             text-shadow:0 0 8px rgba(53,255,138,.5); line-height:1.5; }
+  .sysbadge b{ display:block; letter-spacing:.2em; }
+  .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green);
+        box-shadow:0 0 8px var(--green); animation:pulseDot 1.4s infinite; margin-left:4px; }
+  @keyframes pulseDot{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+  /* ---- Mode selector ---- */
+  .modes{
+    position:relative; z-index:2;
+    display:flex; gap:6px; padding:12px 14px 6px;
+  }
+  .modes button{
+    flex:1; cursor:pointer;
+    font-family:var(--disp); font-size:10px; font-weight:700; letter-spacing:.14em;
+    padding:11px 4px 9px;
+    color:var(--amber-dim);
+    background:linear-gradient(180deg,#0b0e0b,#070807);
+    border:1px solid rgba(255,157,28,.18);
+    border-radius:2px;
+    text-transform:uppercase;
+    transition:all .15s ease;
+    position:relative;
+  }
+  .modes button .jp{ display:block; font-size:7px; letter-spacing:.12em; margin-top:4px; opacity:.7; }
+  .modes button:hover{ color:var(--amber); border-color:rgba(255,157,28,.4); }
+  .modes button.active{
+    color:#120a00;
+    background:linear-gradient(180deg,var(--amber-hi),var(--amber));
+    border-color:var(--amber-hi);
+    box-shadow:0 0 18px rgba(255,157,28,.55);
+    text-shadow:none;
+  }
+  .modes button.active .jp{ opacity:.85; }
+
+  /* ---- Main stage ---- */
+  main{
+    position:relative; z-index:2; flex:1;
+    display:flex; flex-direction:column;
+    padding:8px 16px 16px;
+    overflow:hidden;
+  }
+
+  .mode-label{
+    text-align:center; margin:10px 0 4px;
+    font-size:9px; letter-spacing:.3em; color:var(--amber-dim);
+    text-transform:uppercase;
+  }
+  .mode-label .jp{ color:var(--amber); font-size:11px; letter-spacing:.4em;
+                   text-shadow:0 0 8px rgba(255,157,28,.4); }
+
+  /* ---- The big display panel ---- */
+  .screen{
+    position:relative;
+    margin:10px 0;
+    padding:26px 10px;
+    border:1px solid rgba(255,157,28,.22);
+    border-radius:3px;
+    background:
+      radial-gradient(120% 120% at 50% 30%, rgba(255,157,28,.05), transparent 70%),
+      #060706;
+    box-shadow:inset 0 0 40px rgba(0,0,0,.8), 0 0 20px rgba(255,157,28,.05);
+    display:flex; align-items:center; justify-content:center;
+    min-height:120px;
+  }
+  /* corner ticks */
+  .screen span.corner{ position:absolute; width:12px; height:12px; border:1px solid var(--amber); opacity:.5; }
+  .corner.tl{ top:6px; left:6px; border-right:0; border-bottom:0; }
+  .corner.tr{ top:6px; right:6px; border-left:0; border-bottom:0; }
+  .corner.bl{ bottom:6px; left:6px; border-right:0; border-top:0; }
+  .corner.br{ bottom:6px; right:6px; border-left:0; border-top:0; }
+
+  .time{
+    font-family:var(--mono);
+    font-weight:800;
+    font-size:48px;
+    line-height:1;
+    color:var(--amber);
+    text-shadow:0 0 10px rgba(255,157,28,.75), 0 0 30px rgba(255,157,28,.35);
+    display:flex; align-items:baseline; gap:2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .time .ms{
+    font-size:22px; align-self:flex-end; margin:0 0 7px 3px;
+    color:var(--amber-hi); opacity:.92;
+    text-shadow:0 0 8px rgba(255,157,28,.6);
+    min-width:3.4ch; text-align:left;
+    font-variant-numeric:tabular-nums;
+  }
+  .time .colon{ opacity:.9; animation:blinkColon 1s steps(2) infinite; }
+  @keyframes blinkColon{ 50%{ opacity:.25; } }
+  .time.steady .colon{ animation:none; opacity:.9; }
+
+  /* editable inputs (countdown) look identical to .time */
+  .time input{
+    width:1.9ch; text-align:center;
+    font-family:var(--mono); font-weight:800; font-size:48px; line-height:1;
+    color:var(--amber-hi);
+    background:transparent; border:none; outline:none;
+    text-shadow:0 0 10px rgba(255,157,28,.75);
+    caret-color:var(--amber-hi);
+    font-variant-numeric:tabular-nums;
+    padding:0;
+  }
+  .time input:focus{
+    background:rgba(255,157,28,.12);
+    border-radius:3px;
+    box-shadow:0 0 0 1px rgba(255,157,28,.5);
+  }
+  .time input::selection{ background:rgba(255,157,28,.4); }
+
+  /* WARNING STATES ------------------------------------------------ */
+  .screen.warn .time, .screen.warn .time input{ color:var(--red-hi);
+       text-shadow:0 0 12px rgba(255,35,24,.85), 0 0 34px rgba(255,35,24,.4); }
+  .screen.warn .time .ms, .screen.crit .time .ms{ color:var(--red-hi);
+       text-shadow:0 0 10px rgba(255,35,24,.7); }
+  .screen.warn{ border-color:rgba(255,35,24,.5); box-shadow:inset 0 0 46px rgba(120,0,0,.55); }
+
+  .screen.crit{ border-color:var(--red); }
+  .screen.crit .time, .screen.crit .time input{ color:var(--red-hi); }
+  .screen.crit{ animation:critPulse .55s steps(1) infinite; }
+  @keyframes critPulse{
+    0%   { box-shadow:inset 0 0 46px rgba(255,35,24,.15); background:#060706; }
+    50%  { box-shadow:inset 0 0 90px rgba(255,35,24,.7), 0 0 34px rgba(255,35,24,.6); background:#1a0503; }
+    100% { box-shadow:inset 0 0 46px rgba(255,35,24,.15); background:#060706; }
+  }
+  .screen.crit .time{ animation:critText .55s steps(1) infinite; }
+  @keyframes critText{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  .warnbar{
+    height:14px; margin-top:2px; text-align:center;
+    font-size:8px; letter-spacing:.34em; color:transparent;
+    text-transform:uppercase; transition:color .2s;
+  }
+  .screen.warn ~ .warnbar,
+  .warnbar.show{ color:var(--red-hi); text-shadow:0 0 10px rgba(255,35,24,.6); animation:warnBlink 1s steps(2) infinite; }
+  @keyframes warnBlink{ 50%{ opacity:.2; } }
+
+  /* ---- Controls ---- */
+  .controls{ display:flex; gap:8px; margin-top:14px; }
+  .controls button{
+    flex:1; cursor:pointer;
+    font-family:var(--disp); font-weight:700; font-size:12px; letter-spacing:.14em;
+    padding:15px 4px;
+    color:var(--amber); text-transform:uppercase;
+    background:linear-gradient(180deg,#0c100c,#070807);
+    border:1px solid rgba(255,157,28,.3);
+    border-radius:2px;
+    transition:all .12s ease;
+  }
+  .controls button:active{ transform:translateY(1px); }
+  .controls button.primary{
+    color:#120a00; background:linear-gradient(180deg,var(--amber-hi),var(--amber));
+    border-color:var(--amber-hi); box-shadow:0 0 16px rgba(255,157,28,.45);
+  }
+  .controls button.stop{
+    color:#180302; background:linear-gradient(180deg,var(--red-hi),var(--red));
+    border-color:var(--red-hi); box-shadow:0 0 16px rgba(255,35,24,.45);
+  }
+  .controls button:disabled{ opacity:.28; cursor:not-allowed; box-shadow:none; }
+
+  /* ---- Presets ---- */
+  .presets{ margin-top:14px; }
+  .presets .ptitle{ font-size:8px; letter-spacing:.3em; color:var(--amber-dim); margin-bottom:8px; text-transform:uppercase; }
+  .pgrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .pgrid button{
+    cursor:pointer; font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.05em;
+    padding:12px 2px; color:var(--amber);
+    background:linear-gradient(180deg,#0b0e0b,#070807);
+    border:1px solid rgba(255,157,28,.22); border-radius:2px;
+    transition:all .12s ease;
+  }
+  .pgrid button:hover{ border-color:rgba(255,157,28,.5); color:var(--amber-hi); }
+  .pgrid button:active{ transform:translateY(1px); }
+
+  .hint{ font-size:8px; letter-spacing:.12em; color:var(--amber-dim); text-align:center; margin-top:12px; line-height:1.6; }
+
+  .hidden{ display:none !important; }
+
+  /* ---- Auxiliary video feed (fixed YouTube embed, timer-driven) ---- */
+  .ytwrap{ margin:6px auto 10px; width:90%; }
+  .ytwrap .ptitle{ font-size:8px; letter-spacing:.3em; color:var(--amber-dim);
+                   margin-bottom:6px; text-transform:uppercase; text-align:center; }
+  .ytbox{
+    position:relative; width:100%; aspect-ratio:16/9; overflow:hidden;
+    border:1px solid rgba(255,157,28,.28); border-radius:3px; background:#000;
+    box-shadow:inset 0 0 30px rgba(0,0,0,.7), 0 0 14px rgba(255,157,28,.08);
+  }
+  .ytbox iframe{ position:absolute; inset:0; width:100% !important; height:100% !important; border:0; }
+  /* blocks clicks/taps on the embed so playback stays driven only by the timer */
+  .ytshield{ position:absolute; inset:0; z-index:5; background:transparent; }
+
+  /* footer status ticker */
+  footer{
+    position:relative; z-index:2;
+    border-top:1px solid rgba(255,157,28,.14);
+    padding:7px 14px; font-size:8px; letter-spacing:.2em;
+    color:var(--amber-dim); display:flex; justify-content:space-between;
+  }
+  footer .ok{ color:var(--green); }
+</style>
+</head>
+<body>
+  <div class="device" id="device">
+
+    <header>
+      <div class="logo"></div>
+      <div class="logo-wrap">
+        <div class="brand">NERV<small>SPECIAL AGENCY · CHRONO SYS</small></div>
+      </div>
+      <div class="sysbadge">
+        <b>SYNC OK<span class="dot"></span></b>
+        <span id="hudMode">MODE: WATCH</span>
+      </div>
+    </header>
+
+    <div class="modes">
+      <button data-mode="watch" class="active">Watch<span class="jp">現在時刻</span></button>
+      <button data-mode="chrono">Chrono<span class="jp">経過時間</span></button>
+      <button data-mode="countdown">Countdown<span class="jp">活動限界</span></button>
+    </div>
+
+    <main>
+      <div class="mode-label"><span class="jp" id="jpLabel">現在時刻</span><br id="lblBr"><span id="enLabel">CURRENT TIME</span></div>
+
+      <div class="screen steady" id="screen">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+
+        <!-- static display for watch & chrono -->
+        <div class="time steady" id="timeText">
+          <span id="tH">00</span><span class="colon">:</span><span id="tM">00</span><span class="colon">:</span><span id="tS">00</span><span class="ms hidden" id="tMs">.000</span>
+        </div>
+
+        <!-- editable display for countdown -->
+        <div class="time steady hidden" id="timeEdit">
+          <input id="eH" inputmode="numeric" maxlength="2" value="00" aria-label="hours">
+          <span class="colon">:</span>
+          <input id="eM" inputmode="numeric" maxlength="2" value="25" aria-label="minutes">
+          <span class="colon">:</span>
+          <input id="eS" inputmode="numeric" maxlength="2" value="00" aria-label="seconds"><span class="ms" id="eMs">.000</span>
+        </div>
+      </div>
+
+      <div class="warnbar" id="warnbar">⚠ ACTIVITY LIMIT APPROACHING ⚠</div>
+
+      <!-- controls: chrono + countdown -->
+      <div class="controls hidden" id="controls">
+        <button id="btnStart" class="primary">Start</button>
+        <button id="btnStop" class="stop hidden">Stop</button>
+        <button id="btnReset">Reset</button>
+      </div>
+
+      <!-- presets: countdown only -->
+      <div class="presets hidden" id="presets">
+        <div class="ptitle">// PRESET LIMITS</div>
+        <div class="pgrid" id="pgrid">
+          <button data-sec="60">1m</button>
+          <button data-sec="300">5m</button>
+          <button data-sec="600">10m</button>
+          <button data-sec="900">15m</button>
+          <button data-sec="1500">25m</button>
+          <button data-sec="1800">30m</button>
+          <button data-sec="3600">1h</button>
+          <button data-sec="86400">24h</button>
+        </div>
+        <div class="hint">TAP THE DISPLAY TO ENTER TIME MANUALLY · MAX 24:00:00</div>
+      </div>
+
+    </main>
+
+    <div class="ytwrap hidden" id="ytWrap">
+      <div class="ptitle">// AUX FEED</div>
+      <div class="ytbox">
+        <div id="yt-player-target"></div>
+        <div class="ytshield"></div>
+      </div>
+    </div>
+
+    <footer>
+      <span>NERV-01 // MAGI</span>
+      <span class="ok" id="footStatus">● STANDBY</span>
+    </footer>
+
+    <div class="crt flick"></div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- element refs ---------- */
+  const $ = id => document.getElementById(id);
+  const screenEl = $("screen");
+  const timeText = $("timeText"), timeEdit = $("timeEdit");
+  const tH=$("tH"), tM=$("tM"), tS=$("tS"), tMs=$("tMs");
+  const eH=$("eH"), eM=$("eM"), eS=$("eS"), eMs=$("eMs");
+  const controls=$("controls"), presets=$("presets");
+  const btnStart=$("btnStart"), btnStop=$("btnStop"), btnReset=$("btnReset");
+  const warnbar=$("warnbar"), footStatus=$("footStatus");
+  const jpLabel=$("jpLabel"), enLabel=$("enLabel"), hudMode=$("hudMode");
+  const ytWrap=$("ytWrap");
+
+  /* ---------- helpers ---------- */
+  const pad = n => String(n).padStart(2,"0");
+  function hms(totalSec){
+    totalSec = Math.max(0, Math.floor(totalSec));
+    const h = Math.floor(totalSec/3600);
+    const m = Math.floor((totalSec%3600)/60);
+    const s = totalSec%60;
+    return { h, m, s };
+  }
+  function paintText(h,m,s){ tH.textContent=pad(h); tM.textContent=pad(m); tS.textContent=pad(s); }
+
+  /* ---------- audio (Web Audio, generated beeps) ---------- */
+  let actx=null;
+  function ensureAudio(){
+    if(!actx){
+      try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }
+      catch(e){ actx=null; }
+    }
+    if(actx && actx.state==="suspended") actx.resume();
+  }
+  function beep(freq=880, durMs=90, type="square", vol=0.18){
+    if(!actx) return;
+    const t0 = actx.currentTime;
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type=type; osc.frequency.value=freq;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+durMs/1000);
+    osc.connect(g).connect(actx.destination);
+    osc.start(t0); osc.stop(t0+durMs/1000+0.02);
+  }
+  function finalAlarm(){
+    // three rising urgent tones at zero
+    beep(1046,220,"square",0.22);
+    setTimeout(()=>beep(1318,220,"square",0.22),240);
+    setTimeout(()=>beep(1568,520,"sawtooth",0.24),480);
+  }
+
+  /* ---------- aux video feed (fixed YouTube embed, timer-driven) ---------- */
+  // window.EvaYT is set up by the inline script that loads the YouTube IFrame
+  // API (see bottom of page); it may not be ready yet when a timer starts, so
+  // ytPlay() queues a pendingPlay flag that fires as soon as onReady lands.
+  function ytPlay(){
+    const yt=window.EvaYT; if(!yt) return;
+    if(yt.ready && yt.player && typeof yt.player.playVideo==="function") yt.player.playVideo();
+    else yt.pendingPlay=true;
+  }
+  function ytPause(){
+    const yt=window.EvaYT; if(!yt) return;
+    yt.pendingPlay=false;
+    if(yt.ready && yt.player && typeof yt.player.pauseVideo==="function") yt.player.pauseVideo();
+  }
+  function ytResetToStart(){
+    const yt=window.EvaYT; if(!yt) return;
+    yt.pendingPlay=false;
+    if(yt.ready && yt.player && typeof yt.player.seekTo==="function"){
+      yt.player.pauseVideo();
+      yt.player.seekTo(yt.startSeconds, true);
+    }
+  }
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+  let mode = "watch";
+
+  const chrono = { elapsedMs:0, running:false, startedAt:0, raf:0 };
+  const cd = { total:1500, remainMs:1500000, running:false, endAt:0, raf:0, timer:0, lastBeep:-1, warnLevel:"none" };
+
+  const LABELS = {
+    watch:     { jp:"現在時刻",       en:"CURRENT TIME",   hud:"WATCH" },
+    chrono:    { jp:"作戦経過時間",   en:"ELAPSED TIME",   hud:"CHRONOGRAPH" },
+    countdown: { jp:"活動限界まで",   en:"INTERNAL POWER — TIME REMAINING", hud:"COUNTDOWN" }
+  };
+
+  /* ============================================================
+     WATCH
+     ============================================================ */
+  let watchTimer=0;
+  function startWatch(){
+    stopWatch();
+    const tick=()=>{ const d=new Date(); paintText(d.getHours(),d.getMinutes(),d.getSeconds()); };
+    tick();
+    watchTimer=setInterval(tick,250);
+  }
+  function stopWatch(){ if(watchTimer){ clearInterval(watchTimer); watchTimer=0; } }
+
+  /* ============================================================
+     CHRONOGRAPH  (count up, drift-free via timestamps)
+     ============================================================ */
+  function chronoRender(){
+    let total = chrono.elapsedMs + (chrono.running ? (performance.now()-chrono.startedAt) : 0);
+    const cap = 359999999; // 99:59:59.999
+    if(total>cap) total=cap;
+    const {h,m,s}=hms(Math.floor(total/1000));
+    const ms = Math.floor(total%1000);
+    paintText(h,m,s);
+    tMs.textContent = "."+String(ms).padStart(3,"0");
+    if(chrono.running) chrono.raf=requestAnimationFrame(chronoRender);
+  }
+  function chronoStart(){
+    if(chrono.running) return;
+    chrono.running=true; chrono.startedAt=performance.now();
+    chronoRender();
+    setFooter("● RUNNING","run");
+    swapStartStop(true);
+    ytPlay();
+  }
+  function chronoStop(){
+    if(!chrono.running) return;
+    chrono.elapsedMs += performance.now()-chrono.startedAt;
+    chrono.running=false;
+    cancelAnimationFrame(chrono.raf);
+    chronoRender();
+    setFooter("❚❚ HOLD","hold");
+    swapStartStop(false);
+    ytPause();
+  }
+  function chronoReset(){
+    chrono.running=false; cancelAnimationFrame(chrono.raf);
+    chrono.elapsedMs=0;
+    chronoRender();
+    setFooter("● STANDBY","");
+    swapStartStop(false);
+    ytResetToStart();
+  }
+
+  /* ============================================================
+     COUNTDOWN
+     ============================================================ */
+  function readInputsToTotal(){
+    let h=parseInt(eH.value||"0",10)||0;
+    let m=parseInt(eM.value||"0",10)||0;
+    let s=parseInt(eS.value||"0",10)||0;
+    let total = h*3600+m*60+s;
+    if(total>86400) total=86400;              // clamp to 24h
+    cd.total=total; cd.remainMs=total*1000;
+    reflectCountdown();
+  }
+  function reflectCountdown(){ cdDisplay(cd.remainMs, cd.running); }
+  function cdDisplay(remMs, running){
+    remMs = Math.max(0, remMs);
+    const whole = Math.floor(remMs);
+    const {h,m,s}=hms(Math.floor(whole/1000));
+    eH.value=pad(h); eM.value=pad(m); eS.value=pad(s);
+    eMs.textContent = "."+String(whole%1000).padStart(3,"0");
+    applyWarnState(Math.ceil(remMs/1000), running);
+  }
+  // Idempotent: only touches the DOM when the level actually changes,
+  // so the crit pulse animation isn't restarted on every render frame.
+  function applyWarnState(remSec, running){
+    let level="none";
+    if(mode==="countdown" && running){
+      if(remSec<=60) level="crit";
+      else if(remSec<=300) level="warn";
+    }
+    if(level===cd.warnLevel) return;
+    cd.warnLevel=level;
+    screenEl.classList.remove("warn","crit");
+    warnbar.classList.remove("show");
+    if(level==="crit"){ screenEl.classList.add("crit"); warnbar.classList.add("show"); }
+    else if(level==="warn"){ screenEl.classList.add("warn"); warnbar.classList.add("show"); }
+  }
+  // LOGIC loop (setInterval): authoritative timekeeping — beeps, warnings and
+  // completion. Keeps firing even when the tab is backgrounded (rAF would pause),
+  // so the alarm still goes off if the user looks away.
+  function cdLogic(){
+    const remMs = cd.endAt - performance.now();
+    cd.remainMs = Math.max(0, remMs);
+    const remSec = Math.ceil(cd.remainMs/1000);
+    applyWarnState(remSec, true);
+    // beeps keyed on whole-second boundaries (final 10s rising, + 5m/1m chirps)
+    if(remSec<=10 && remSec>0 && cd.lastBeep!==remSec){
+      beep(700 + (10-remSec)*90, 110, "square", 0.2);
+      cd.lastBeep=remSec;
+    } else if((remSec===300 || remSec===60) && cd.lastBeep!==remSec){
+      beep(remSec===60?1200:900, 180, "triangle", 0.2);
+      cd.lastBeep=remSec;
+    }
+    if(remMs<=0){ cdComplete(); }
+  }
+  // RENDER loop (rAF): smooth millisecond display while the tab is visible.
+  function cdRender(){
+    if(!cd.running) return;
+    cdDisplay(Math.max(0, cd.endAt - performance.now()), true);
+    cd.raf=requestAnimationFrame(cdRender);
+  }
+  function cdStopLoops(){ clearInterval(cd.timer); cancelAnimationFrame(cd.raf); }
+  function cdStart(){
+    if(cd.running) return;
+    if(cd.remainMs<=0) readInputsToTotal();
+    if(cd.remainMs<=0){ // still nothing set
+      beep(300,120,"square",0.15);
+      return;
+    }
+    cd.running=true;
+    cd.endAt = performance.now() + cd.remainMs;
+    cd.lastBeep=-1;
+    setEditable(false);
+    setFooter("● COUNTDOWN ACTIVE","run");
+    swapStartStop(true);
+    cdStopLoops();
+    cd.timer=setInterval(cdLogic, 100);
+    cdLogic();    // immediate warn-state + boundary beep
+    cdRender();   // smooth ms display
+    ytPlay();
+  }
+  function cdStop(){
+    if(!cd.running) return;
+    cdStopLoops();
+    cd.running=false;
+    setEditable(true);
+    applyWarnState(Math.ceil(cd.remainMs/1000), false);
+    setFooter("❚❚ PAUSED","hold");
+    swapStartStop(false);
+    ytPause();
+  }
+  function cdReset(){
+    cdStopLoops();
+    cd.running=false;
+    cd.remainMs=cd.total*1000;
+    cd.lastBeep=-1;
+    setEditable(true);
+    reflectCountdown();
+    setFooter("● STANDBY","");
+    swapStartStop(false);
+    ytResetToStart();
+  }
+  function cdComplete(){
+    cdStopLoops();
+    cd.running=false;
+    cd.remainMs=0;
+    cdDisplay(0, false);
+    finalAlarm();
+    screenEl.classList.remove("warn");
+    screenEl.classList.add("crit");
+    warnbar.classList.add("show");
+    warnbar.textContent="⚠ ACTIVITY LIMIT REACHED — POWER DEPLETED ⚠";
+    cd.warnLevel="crit";   // keep tracker in sync with the DOM
+    setEditable(true);
+    setFooter("✖ LIMIT REACHED","stopfoot");
+    swapStartStop(false);
+    ytPause();
+  }
+  function setEditable(on){
+    [eH,eM,eS].forEach(inp=>{ inp.readOnly=!on; });
+  }
+
+  /* ---------- countdown input sanitizing ---------- */
+  function clampField(inp, max){
+    let v = inp.value.replace(/[^0-9]/g,"").slice(0,2);
+    inp.value=v;
+    let n = parseInt(v||"0",10);
+    if(n>max) { n=max; }
+    // live-update total on edit
+    if(!cd.running){
+      // recompute from all fields with clamping
+      let h=Math.min(24, parseInt(eH.value||"0",10)||0);
+      let m=Math.min(59, parseInt(eM.value||"0",10)||0);
+      let s=Math.min(59, parseInt(eS.value||"0",10)||0);
+      let total=h*3600+m*60+s;
+      if(total>86400){ total=86400; }
+      cd.total=total; cd.remainMs=total*1000;
+      eMs.textContent=".000";   // manual entry sets whole seconds
+    }
+  }
+  function normalizeField(inp,max){
+    let n=Math.min(max, parseInt(inp.value||"0",10)||0);
+    inp.value=pad(n);
+    // enforce 24h ceiling across fields
+    if(!cd.running){
+      let h=parseInt(eH.value,10)||0, m=parseInt(eM.value,10)||0, s=parseInt(eS.value,10)||0;
+      if(h*3600+m*60+s>86400){ eH.value="24"; eM.value="00"; eS.value="00"; }
+      readInputsToTotal();
+    }
+  }
+  eH.addEventListener("input",()=>clampField(eH,24));
+  eM.addEventListener("input",()=>clampField(eM,59));
+  eS.addEventListener("input",()=>clampField(eS,59));
+  eH.addEventListener("blur",()=>normalizeField(eH,24));
+  eM.addEventListener("blur",()=>normalizeField(eM,59));
+  eS.addEventListener("blur",()=>normalizeField(eS,59));
+  // select-all on focus for quick typing; auto-advance
+  [eH,eM,eS].forEach((inp,i,arr)=>{
+    inp.addEventListener("focus",()=>{ ensureAudio(); setTimeout(()=>inp.select(),0); });
+    inp.addEventListener("input",()=>{ if(inp.value.length>=2 && i<arr.length-1) arr[i+1].focus(); });
+  });
+
+  /* ============================================================
+     SHARED UI
+     ============================================================ */
+  function swapStartStop(running){
+    if(running){ btnStart.classList.add("hidden"); btnStop.classList.remove("hidden"); }
+    else       { btnStop.classList.add("hidden");  btnStart.classList.remove("hidden"); }
+  }
+  function setFooter(txt, kind){
+    footStatus.textContent=txt;
+    footStatus.className = (kind==="run"||kind==="hold"||kind==="") ? "ok" : "";
+    if(kind==="stopfoot") footStatus.style.color="var(--red-hi)";
+    else footStatus.style.color="";
+  }
+
+  function setMode(m){
+    // tear down previous
+    stopWatch();
+    if(chrono.running) chronoStop();
+    if(cd.running) cdStop();
+
+    mode=m;
+    document.querySelectorAll(".modes button").forEach(b=>{
+      b.classList.toggle("active", b.dataset.mode===m);
+    });
+    const L=LABELS[m];
+    jpLabel.textContent=L.jp; enLabel.textContent=L.en; hudMode.textContent="MODE: "+L.hud;
+
+    // reset warning visuals + warnbar text
+    screenEl.classList.remove("warn","crit");
+    warnbar.classList.remove("show");
+    warnbar.textContent="⚠ ACTIVITY LIMIT APPROACHING ⚠";
+    cd.warnLevel="none";
+
+    if(m==="watch"){
+      timeText.classList.remove("hidden"); timeEdit.classList.add("hidden");
+      timeText.classList.remove("steady"); // let colon blink like a clock
+      tMs.classList.add("hidden");         // no milliseconds on the wall clock
+      controls.classList.add("hidden"); presets.classList.add("hidden");
+      ytWrap.classList.add("hidden");
+      setFooter("● LIVE","");
+      startWatch();
+    }
+    else if(m==="chrono"){
+      timeText.classList.remove("hidden"); timeEdit.classList.add("hidden");
+      timeText.classList.add("steady");
+      tMs.classList.remove("hidden");      // show milliseconds on the chronograph
+      controls.classList.remove("hidden"); presets.classList.add("hidden");
+      ytWrap.classList.remove("hidden");
+      swapStartStop(false);
+      chronoRender();
+      setFooter(chrono.elapsedMs>0?"❚❚ HOLD":"● STANDBY","");
+    }
+    else { // countdown
+      timeText.classList.add("hidden"); timeEdit.classList.remove("hidden");
+      controls.classList.remove("hidden"); presets.classList.remove("hidden");
+      ytWrap.classList.remove("hidden");
+      swapStartStop(false);
+      setEditable(true);
+      reflectCountdown();
+      setFooter("● STANDBY","");
+    }
+  }
+
+  /* ---------- mode buttons ---------- */
+  document.querySelectorAll(".modes button").forEach(b=>{
+    b.addEventListener("click",()=>{ ensureAudio(); setMode(b.dataset.mode); });
+  });
+
+  /* ---------- control buttons (context-aware) ---------- */
+  btnStart.addEventListener("click",()=>{
+    ensureAudio();
+    if(mode==="chrono") chronoStart();
+    else if(mode==="countdown") cdStart();
+  });
+  btnStop.addEventListener("click",()=>{
+    if(mode==="chrono") chronoStop();
+    else if(mode==="countdown") cdStop();
+  });
+  btnReset.addEventListener("click",()=>{
+    ensureAudio();
+    if(mode==="chrono") chronoReset();
+    else if(mode==="countdown"){ warnbar.textContent="⚠ ACTIVITY LIMIT APPROACHING ⚠"; cdReset(); }
+  });
+
+  /* ---------- presets ---------- */
+  document.getElementById("pgrid").addEventListener("click",e=>{
+    const btn=e.target.closest("button"); if(!btn) return;
+    ensureAudio();
+    let sec=parseInt(btn.dataset.sec,10);
+    if(sec>86400) sec=86400;
+    if(cd.running) cdStop();
+    cd.total=sec; cd.remainMs=sec*1000; cd.lastBeep=-1;
+    warnbar.textContent="⚠ ACTIVITY LIMIT APPROACHING ⚠";
+    setEditable(true);
+    reflectCountdown();
+    setFooter("● ARMED · "+btn.textContent,"");
+    beep(760,80,"square",0.15);
+  });
+
+  /* ---------- boot ---------- */
+  setMode("watch");
+})();
+</script>
+<script>
+  /* fixed aux-feed video, controlled entirely by the Chrono/Countdown timers */
+  window.EvaYT = { player:null, ready:false, pendingPlay:false, videoId:"cPXTUj20tyQ", startSeconds:986 };
+  window.onYouTubeIframeAPIReady = function(){
+    window.EvaYT.player = new YT.Player("yt-player-target", {
+      videoId: window.EvaYT.videoId,
+      playerVars:{
+        start: window.EvaYT.startSeconds,
+        controls:0, disablekb:1, modestbranding:1, rel:0, fs:0,
+        iv_load_policy:3, playsinline:1
+      },
+      events:{
+        onReady: function(){
+          window.EvaYT.ready = true;
+          if(window.EvaYT.pendingPlay){
+            window.EvaYT.pendingPlay = false;
+            window.EvaYT.player.playVideo();
+          }
+        }
+      }
+    });
+  };
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+  /* register service worker for offline / installable PWA */
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",()=>{
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    });
+  }
+</script>
+</body>
+</html>
